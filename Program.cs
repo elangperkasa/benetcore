@@ -8,8 +8,9 @@ using BENETCORE.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var key = builder.Configuration["Jwt:Key"];
-var issuer = builder.Configuration["Jwt:Issuer"];
+//var key = builder.Configuration["Jwt:Key"];
+//var issuer = builder.Configuration["Jwt:Issuer"];
+var key = Encoding.ASCII.GetBytes(builder.Configuration["Jwt:Key"]);
 
 
 builder.Services.AddAuthentication(options =>
@@ -21,12 +22,18 @@ builder.Services.AddAuthentication(options =>
 {
     options.TokenValidationParameters = new TokenValidationParameters
     {
-        ValidateIssuer = true,
-        ValidateAudience = false,
-        ValidateLifetime = true,
+        //ValidateIssuer = true,
+        //ValidateAudience = false,
+        //ValidateLifetime = true,
+        //ValidateIssuerSigningKey = true,
+        //ValidIssuer = builder.Configuration["Jwt:Issuer"],
+        //ValidAudience = builder.Configuration["Jwt:Audience"],
+        //IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
         ValidateIssuerSigningKey = true,
-        ValidIssuer = issuer,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key))
+        IssuerSigningKey = new SymmetricSecurityKey(key),
+        ValidateIssuer = false,
+        ValidateAudience = false
+
     };
 });
 

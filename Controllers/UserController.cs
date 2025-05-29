@@ -1,9 +1,11 @@
 ﻿using BENETCORE.Data;
 using BENETCORE.Model;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -15,52 +17,68 @@ namespace BENETCORE.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class UserController : ControllerBase
     {
-        private readonly Data.tDbContext _context;
-        //private readonly IConfiguration _config;
 
-        public UserController(Data.tDbContext context)
+        private readonly Data.tDbContext _context;
+        private readonly IConfiguration _configuration;
+
+
+        public UserController(Data.tDbContext context, IConfiguration configuration)
         {
             _context = context;
+            _configuration = configuration;
         }
 
-        //[HttpPost("login")]
-        //public async Task<IActionResult> Login([FromBody] LoginRequest request)
-        //{
-        //    var user = await _context.User
-        //        .FirstOrDefaultAsync(u => u.Email == request.Email && u.Status == "Active");
 
-        //    if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
-        //    {
-        //        return Unauthorized("Invalid credentials");
-        //    }
+        [AllowAnonymous]
+        [HttpPost("login")]
+        public async Task<IActionResult> Login([FromBody] LoginRequest request)
+        {
+            var jwtKey = _configuration["Jwt:Key"];
+            var jwtIssuer = _configuration["Jwt:Issuer"];
+            var jwtAudience = _configuration["Jwt:Audience"];
 
-        //    var token = GenerateJwtToken(user);
-        //    return Ok(new { token });
-        //}
+            var user = await _context.User.FirstOrDefaultAsync(u => u.Email == request.Email);
+            if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+            {
+                return Unauthorized(new { message = "Invalid email or password" });
+            }
 
-        //private string GenerateJwtToken(User user)
-        //{
-        //    var claims = new[]
-        //    {
-        //    new Claim(JwtRegisteredClaimNames.Sub, user.Id),
-        //    new Claim(JwtRegisteredClaimNames.Email, user.Email),
-        //    new Claim("name", user.Name),
-        //    new Claim("status", user.Status)
-        //};
+            var tokenHandler = new JwtSecurityTokenHandler();
 
-        //    var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
-        //    var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+            if (string.IsNullOrEmpty(jwtKey))
+            {
+                throw new Exception("JWT Key is missing in configuration.");
+            }
 
-        //    var token = new JwtSecurityToken(
-        //        issuer: _config["Jwt:Issuer"],
-        //        claims: claims,
-        //        expires: DateTime.Now.AddHours(2),
-        //        signingCredentials: creds);
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
 
-        //    return new JwtSecurityTokenHandler().WriteToken(token);
-        //}
+
+            var tokenDescriptor = new SecurityTokenDescriptor
+            {
+                Subject = new ClaimsIdentity(new Claim[]
+                {
+            new Claim(ClaimTypes.NameIdentifier, user.Id),
+            new Claim(ClaimTypes.Email, user.Email),
+            new Claim("status", user.Status)
+                }),
+                Expires = DateTime.UtcNow.AddHours(1),
+                SigningCredentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256Signature)
+            };
+
+            var token = tokenHandler.CreateToken(tokenDescriptor);
+            var tokenString = tokenHandler.WriteToken(token);
+
+            return Ok(new { token = tokenString });
+        }
+
+        public class LoginRequest
+        {
+            public string Email { get; set; }
+            public string Password { get; set; }
+        }
 
         [HttpGet]
         public async Task<IActionResult> GetAll()
@@ -77,7 +95,7 @@ namespace BENETCORE.Controllers
                 return BadRequest("Email already in use.");
 
             //Hash password
-            var hashedPassword = BCrypt.Net.BCrypt.HashPassword(request.Password);
+            var hashedPassword   = BCrypt.Net.BCrypt.HashPassword(request.Password);
 
             var user = new Data.User
             {
@@ -144,4 +162,6 @@ namespace BENETCORE.Controllers
 
 
     }
+
+
 }
