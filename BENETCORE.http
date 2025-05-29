@@ -1,0 +1,6 @@
+@BENETCORE_HostAddress = http://localhost:5201
+
+GET {{BENETCORE_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
